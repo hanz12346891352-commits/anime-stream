@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HanAnim</title>
+<style>
+body{background:#0f1115;color:#eee;font-family:system-ui;margin:0;padding:16px}
+h1{margin:0 0 16px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px}
+.card{background:#1a1d24;border-radius:12px;overflow:hidden;cursor:pointer}
+.card img{width:100%;aspect-ratio:2/3;object-fit:cover;display:block}
+.card.info{padding:8px}
+.title{font-size:14px;font-weight:600;line-height:1.3}
+.loading{text-align:center;padding:20px}
+</style>
+</head>
+<body>
+<h1>HanAnim 🔥</h1>
+<div id="populer" class="grid"><div class="loading">Loading...</div></div>
+<script src="app.js"></script>
+</body>
+</html>
