@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Anime Stream</title>
+<style>
+  :root { --bg:#0f172a; --card:#1e293b; --text:#e2e8f0; --accent:#38bdf8; }
+  body { background:var(--bg); color:var(--text); font-family:sans-serif; margin:0; padding:20px; }
+  .header { display:flex; gap:10px; margin-bottom:20px; flex-wrap:wrap; }
+  .header input { flex:1; padding:10px; border-radius:8px; border:none; background:var(--card); color:var(--text); }
+  .header button, .tabs button { padding:10px 16px; border:none; border-radius:8px; background:var(--card); color:var(--text); cursor:pointer; }
+  .header button:hover, .tabs button.active { background:var(--accent); color:#000; }
+  .tabs { display:flex; gap:8px; margin-bottom:20px; flex-wrap:wrap; }
+  #grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(180px, 1fr)); gap:16px; }
+  .card { background:var(--card); border-radius:12px; overflow:hidden; transition:.2s; }
+  .card:hover { transform:scale(1.03); }
+  .card img { width:100%; height:250px; object-fit:cover; }
+  .card-body { padding:10px; }
+  .card h3 { font-size:14px; margin:0 0 4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .card p { font-size:12px; opacity:.7; margin:0; }
+  .pagination { display:flex; justify-content:center; gap:10px; margin-top:20px; }
+  .loading, .error { text-align:center; padding:40px; font-size:18px; }
+</style>
+</head>
+<body>
+
+  <div class="header">
+    <input id="searchInput" placeholder="Cari anime... contoh: naruto">
+    <button onclick="searchAnime()">Cari</button>
+  </div>
+
+  <div class="tabs">
+    <button class="active" onclick="loadTab('ongoing', this)">Ongoing</button>
+    <button onclick="loadTab('latest', this)">Latest</button>
+    <button onclick="loadTab('popular', this)">Popular</button>
+    <button onclick="loadTab('movies', this)">Movies</button>
+    <button onclick="loadTab('completed', this)">Completed</button>
+  </div>
+
+  <div id="grid"></div>
+  <div class="pagination" id="pagination"></div>
+
+<script>
+// ===== CORE LOGIC 4 API =====
+const parseHTML = html => new DOMParser().parseFromString(html, 'text/html');
+
+const scrapeSankavollerei = doc => [...doc.querySelectorAll('div.animposx')].map(el => ({
+  title: el.querySelector('div.data h2.title')?.textContent.trim() || el.querySelector('a > h2')?.textContent.trim(),
+  image: el.querySelector('img.ts-post-image')?.src || el.querySelector('img')?.src,
+  link: el.querySelector('a')?.href,
+  episode: el.querySelector('.epz')?.textContent.trim(),
+  type: el.querySelector('.type')?.textContent.trim(),
+}));
+
+const scrapeOtakudesu = doc => [...doc.querySelectorAll('div.rseries > a')].map(el => ({
+  title: el.querySelector('.rapi > h2')?.textContent.trim(),
+  image: el.querySelector('img')?.src,
+  link: el.href,
+  episode: el.querySelector('.epz')?.textContent.trim(),
+  type: 'TV'
+}));
+
+const scrapeSankavoi = data => data.map(item => ({
+  title: item.title, image: item.image, link: item.link, episode: item.episode, type: item.type
+}));
+
+async function getAnime(endpoint = 'ongoing', page = 1, query = '') {
+  const apis = [
+    { name: 'samehadaku', url: `/api/samehadaku/${endpoint}?page=${page}`, scraper: scrapeSankavollerei, isJson: false },
+    { name: 'animasu',    url: `/api/animasu/${endpoint}?page=${page}`,   scraper: scrapeSankavollerei, isJson: false },
+    { name: 'otakudesu',  url: `/api/otakudesu/${endpoint}`,              scraper: scrapeOtakudesu,     isJson: false },
+    { name: 'sankavoi',   url: `/api/sankavoi?q=${query}`,                scraper: scrapeSankavoi,      isJson: true  }
+  ];
+
+  for (const api of apis) {
+    try {
+      const res = await fetch(api.url);
+      if (!res.ok) continue;
+      const data = api.isJson ? api.scraper(await res.json()) : api.scraper(parseHTML(await res.text()));
+      if (data.length > 0) return data;
+    } catch {}
+  }
+  return [];
+}
+
+// ===== UI LOGIC =====
+let currentPage = 1;
+let currentEndpoint = 'ongoing';
+let currentQuery = '';
+const grid = document.getElementById('grid');
+const pagination = document.getElementById('pagination');
+
+function render(data) {
+  if(data.length === 0) {
+    grid.innerHTML = `<div class="error">Data kosong 😭 Semua API down</div>`;
+    return;
+  }
+  grid.innerHTML = data.map(a => `
+    <div class="card">
+      <img src="${a.image}" loading="lazy" alt="${a.title}">
+      <div class="card-body">
+        <h3 title="${a.title}">${a.title}</h3>
+        <p>${a.episode || '-'} | ${a.type || '-'}</p>
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderPagination() {
+  pagination.innerHTML = `
+    <button ${currentPage<=1?'disabled':''} onclick="changePage(-1)">Prev</button>
+    <span>Page ${currentPage}</span>
+    <button onclick="changePage(1)">Next</button>
+  `;
+}
+
+async function loadData() {
+  grid.innerHTML = `<div class="loading">Loading...</div>`;
+  const data = await getAnime(currentEndpoint, currentPage, currentQuery);
+  render(data);
+  renderPagination();
+}
+
+function loadTab(endpoint, btn) {
+  document.querySelectorAll('.tabs button').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  currentEndpoint = endpoint;
+  currentPage = 1;
+  currentQuery = '';
+  loadData();
+}
+
+function searchAnime() {
+  currentQuery = document.getElementById('searchInput').value.trim();
+  if(!currentQuery) return;
+  currentEndpoint = 'search';
+  currentPage = 1;
+  loadData();
+}
+
+function changePage(dir) {
+  currentPage += dir;
+  if(currentPage<1) currentPage=1;
+  loadData();
+  window.scrollTo(0,0);
+}
+
+// Auto load pertama kali
+loadData();
+</script>
+</body>
+</html>
