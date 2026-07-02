@@ -1,0 +1,6 @@
+name = "anime-stream"
+compatibility_date = "2024-09-04"
+pages_build_output_dir = "public"
+
+[functions]
+directory = "api"
